@@ -14,7 +14,23 @@ def run(t_img, prompt, seed):
     assert t_img.shape[0] == 1
     
     i = 255. * t_img[0].numpy()
-    image = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8)).convert("RGB").resize((g_width, g_height))
+    img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8)).convert("RGB")
+    
+    # Pad to 1:1 aspect ratio
+    w, h = img.size
+    if w > h:
+        new_h = w
+        padding = (w - h) // 2
+        padded_img = Image.new('RGB', (w, new_h), (0, 0, 0))
+        padded_img.paste(img, (0, padding))
+    else:
+        new_w = h 
+        padding = (h - w) // 2
+        padded_img = Image.new('RGB', (new_w, h), (0, 0, 0))
+        padded_img.paste(img, (padding, 0))
+        
+    # Resize to target dimensions
+    image = padded_img.resize((g_width, g_height))
 
     release_gpu()
 
