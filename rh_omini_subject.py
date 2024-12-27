@@ -9,33 +9,41 @@ import folder_paths
 import os
 from ComfyUI_RH_OminiControl.rh_utils import *
 
-def run(t_img, prompt, seed):
+def run(t_img, prompt, seed, type, steps):
+    if type == "512":
+        g_width = 512
+        g_height = 512
+    elif type == "1024":
+        g_width = 1024
+        g_height = 1024
 
     assert t_img.shape[0] == 1
     
     i = 255. * t_img[0].numpy()
     img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8)).convert("RGB")
     
-    # Pad to 1:1 aspect ratio
-    w, h = img.size
-    if w > h:
-        new_h = w
-        padding = (w - h) // 2
-        padded_img = Image.new('RGB', (w, new_h), (0, 0, 0))
-        padded_img.paste(img, (0, padding))
-    else:
-        new_w = h 
-        padding = (h - w) // 2
-        padded_img = Image.new('RGB', (new_w, h), (0, 0, 0))
-        padded_img.paste(img, (padding, 0))
-        
+    # Crop to square aspect ratio
+    w, h, min_size = img.size[0], img.size[1], min(img.size)
+    image = img.crop(
+        (
+            (w - min_size) // 2,
+            (h - min_size) // 2,
+            (w + min_size) // 2,
+            (h + min_size) // 2,
+        )
+    )
+    
     # Resize to target dimensions
-    image = padded_img.resize((g_width, g_height))
+    image = image.resize((512, 512))
+    image.save("test.png")  
 
     release_gpu()
 
     flux_dir = os.path.join(folder_paths.models_dir, 'flux', 'FLUX.1-schnell')
-    lora_model = os.path.join(folder_paths.models_dir, 'flux', 'OminiControl', 'omini', 'subject_512.safetensors')
+    if type == "512":
+        lora_model = os.path.join(folder_paths.models_dir, 'flux', 'OminiControl', 'omini', 'subject_512.safetensors')
+    elif type == "1024":
+        lora_model = os.path.join(folder_paths.models_dir, 'flux', 'OminiControl', 'omini', 'subject_1024_beta.safetensors')
 
     encoded_condition = encode_condition(flux_dir, image)
 
@@ -103,7 +111,7 @@ def run(t_img, prompt, seed):
         conditions=[condition],
         output_type="latent",
         return_dict=False,
-        num_inference_steps=8,
+        num_inference_steps=steps,
         height=g_height,
         width=g_width,
         generator=torch.Generator(device='cuda').manual_seed(seed),
@@ -113,7 +121,7 @@ def run(t_img, prompt, seed):
 
     release_gpu()
 
-    result_img = decode_latents(flux_dir, result_latents[0]).images[0]
+    result_img = decode_latents(flux_dir, result_latents[0], g_width, g_height).images[0]
 
     return torch.from_numpy(np.array(result_img).astype(np.float32) / 255.0).unsqueeze(0)
 

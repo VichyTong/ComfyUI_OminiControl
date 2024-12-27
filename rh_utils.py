@@ -8,9 +8,6 @@ from diffusers.pipelines.flux.pipeline_flux import (
     FluxPipelineOutput,
 )
 
-g_width = 512
-g_height = 512
-
 def release_gpu():
     gc.collect()
     torch.cuda.empty_cache()
@@ -37,7 +34,7 @@ def encode_condition(flux_dir, image, condition_type='subject'):
 
     return (tokens, ids, type_id)
 
-def decode_latents(flux_dir, latents):
+def decode_latents(flux_dir, latents, g_width, g_height):
     pipeline = FluxPipeline.from_pretrained(
         flux_dir,
         text_encoder=None,
